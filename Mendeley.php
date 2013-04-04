@@ -24,8 +24,7 @@ class Mendeley {
 	const MENDELEY_REQUEST_TOKEN_ENDPOINT = 'http://api.mendeley.com/oauth/request_token/';
 	const MENDELEY_ACCESS_TOKEN_ENDPOINT = 'http://api.mendeley.com/oauth/access_token/';
 	const MENDELEY_AUTHORIZE_ENDPOINT = 'http://api.mendeley.com/oauth/authorize/';
-	const MENDELEY_OAPI_PRIVATE_URL = 'http://api.mendeley.com/oapi/library/';
-	const MENDELEY_OAPI_PUBLIC_URL = 'http://api.mendeley.com/oapi/';
+	const MENDELEY_OAPI_URL = 'http://api.mendeley.com/oapi';
 
 	/**
 	 * @var OAuthConsumer $consumer
@@ -81,7 +80,6 @@ class Mendeley {
 	public function getAccessToken() {
 		if(!$this->accessToken) {
 			$access_cache = $this->cache->get('access_token');
-
 			if(isset($access_cache['oauth_token'])) {
 				$this->accessToken = new OAuthToken($access_cache['oauth_token'], $access_cache['oauth_token_secret']);
 			} else {
@@ -131,15 +129,11 @@ class Mendeley {
 			throw new Exception('HTTP params need to be array in Mendeley::http');
 		}
 
+		$url = self::MENDELEY_OAPI_URL . $url;
 		if($authentication) {
-			$url = self::MENDELEY_OAPI_PRIVATE_URL . $url;
 			$token = $this->getAccessToken($this->signatureMethod, $this->consumer);
 			$request = OAuthRequest::from_consumer_and_token($this->consumer, $token, $method, $url, $params);
 			$request->sign_request($this->signatureMethod, $this->consumer, $token);
-		} else {
-			$url = self::MENDELEY_OAPI_PUBLIC_URL . $url;
-			$params['consumer_key'] = $this->consumer->key;
-			$request = new OAuthRequest($method, $url, $params);
 		}
 
 		if($method === 'GET') {
@@ -187,7 +181,7 @@ class Mendeley {
 	 * @param array $params
 	 */
 	public function getCollection($groupId, $params = array()) {
-		$collection = $this->get('groups/' . $groupId, $params);
+		$collection = $this->get('/library/groups/' . $groupId, $params);
 		$collection->documents = $this->loadDocumentDetails($collection->document_ids);
 		return $collection;
 	}
@@ -202,7 +196,7 @@ class Mendeley {
 	private function loadDocumentDetails($documentIds) {
 		$documents = array();
 		foreach($documentIds as $id) {
-			$documents[$id] = $this->get('documents/' . $id);
+			$documents[$id] = $this->get('/library/documents/' . $id);
 		}
 		return $documents;
 	}
@@ -213,7 +207,11 @@ class Mendeley {
 	 * @return StdClass
 	 */
 	public function getGroupDocuments($groupId, $params = array()) {
-		return $this->get('groups/' . $groupId, $params);
+		return $this->get('/library/groups/' . $groupId, $params);
+	}
+
+	public function getLibraryDocuments($params = array()) {
+		return $this->get('/library', $params);
 	}
 
 	/**
@@ -410,9 +408,9 @@ class MendeleyDoc {
 	 * @param string $documentId
 	 * 	sent by Mendeley in e.g. collections/*collectionId*
 	 */
-	public static function constructWithDocumentId($documentId) {
+	public static function constructWithDocumentId($documentId, $consumerKey = null, $consumerSecret = null) {
 		$that = new MendeleyDoc();
-		$mendeley = new Mendeley();
+		$mendeley = new Mendeley($consumerKey, $consumerSecret);
 
 		if($remote = $mendeley->get('documents/' . $documentId)) {
 			$localParams = array_keys(get_object_vars($that));
@@ -441,7 +439,6 @@ class MendeleyDoc {
  * Helper to cache arbitrary variables esp. oauth tokens in the file system
  */
 class MendeleyCache {
-	private $dir;
 	private $suffix;
 
 	/**
@@ -449,12 +446,12 @@ class MendeleyCache {
 	 * 	is added to the cache files, can be used to cache tokens for multiple consumer
 	 */
 	public function __construct($suffix = '') {
-		$this->dir = dirname(__FILE__) . '/cache/';
 		$this->suffix = $suffix;
 	}
 
 	public function get($name) {
-		if(@$cache = file_get_contents($this->dir . $name . $this->suffix)) {
+		if ($cache = variable_get('biblio_mendeley_foobar', array())) {
+		// if(@$cache = file_get_contents($this->dir . $name . $this->suffix)) {
 			return unserialize($cache);
 		} else {
 			return false;
@@ -462,38 +459,18 @@ class MendeleyCache {
 	}
 
 	public function del($name) {
-		@unlink($this->dir . $name . $this->suffix);
+		variable_del('biblio_mendeley_foobar');
 	}
 
 	public function set($name, $value) {
-		$success = $this->filePutContentsWithDir($this->dir . $name . $this->suffix, serialize($value));
+		variable_set('biblio_mendeley_foobar', serialize($value));
+		// if (!is_dir($this->dir)) {
+		// 	mkdir($this->dir);
+		// }
+		// $success = file_put_contents($this->dir . $name . $this->suffix, serialize($value));
 
-		if($success == false) {
-			throw new Exception(sprintf('Could not create directory or file: %s. Please check the permissions.', $this->dir . $name . $this->suffix));
-		}
-	}
-
-	public function getDir() {
-		return $this->dir;
-	}
-
-	/**
-	 * File put contents fails if you try to put a file in a directory that doesn't exist. This creates the directory and the file.
-	 * @see http://www.php.net/manual/de/function.file-put-contents.php#84180 TrentTompkins at gmail dot com
-	 */
-	private function filePutContentsWithDir($dir, $contents){
-		$success = true;
-		$parts = explode(DIRECTORY_SEPARATOR, $dir);
-		$file = array_pop($parts);
-		$dir = '';
-		foreach($parts as $part) {
-			if(!is_dir($dir .= '/' . $part)) {
-				$success = mkdir($dir) && $success;
-			}
-		}
-
-		$success = file_put_contents($dir . '/' . $file, $contents) && $success;
-
-		return $success;
+		// if($success == false) {
+		// 	throw new Exception(sprintf('Could not create directory or file: %s. Please check the permissions.', $this->dir . $name . $this->suffix));
+		// }
 	}
 }

@@ -223,11 +223,11 @@ class MendeleyBiblioDoc extends MendeleyDoc {
 	 * @param string $documentId
 	 * 	sent by Mendeley in e.g. collections/*collectionId*
 	 */
-	public static function constructWithDocumentId($documentId) {
+	public static function constructWithDocumentId($documentId, $consumerKey = null, $consumerSecret = null) {
 		$that = new MendeleyBiblioDoc();
-		$mendeley = new Mendeley();
+		$mendeley = new Mendeley($consumerKey, $consumerSecret);
 
-		if($remote = $mendeley->get('documents/' . $documentId)) {
+		if($remote = $mendeley->get('/library/documents/' . $documentId)) {
 			$localParams = array_keys(get_object_vars($that));
 			$remoteParams = array_keys(get_object_vars($remote));
 			$match = array_intersect($localParams, $remoteParams);
