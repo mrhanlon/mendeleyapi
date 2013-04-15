@@ -186,15 +186,26 @@ class MendeleyBiblioDoc extends MendeleyDoc {
 	 * @return array
 	 */
 	public function toNode($nid = null) {
-		$node = self::map();
+		
+		if($nid ){
 
-		foreach($node as $biblioKey => &$mendeley) {
-			$mendeley = $this->$mendeley;
+			$node = node_load($nid) ;
+		}else{
+			$node = (object) self::map();
+			foreach($node as $biblioKey => &$mendeley) {
+				$mendeley = $this->$mendeley;
+			}
+
+			$node->type = 'biblio';
+		
+			node_object_prepare($node);
 		}
-		$node = (object)array_filter($node);
 
-		$node->type = 'biblio';
+		// drupal_set_message('<pre>' . print_r($node, 1) . '</pre>');
+		// $node = (object)array_filter($node);
+		
 		$node->biblio_type = self::mendeleyToBiblioType($this->type);
+
 		if(!empty($this->authors)) {
 			foreach((array)$this->authors as $a) {
 				$node->biblio_contributors[self::BIBLIO_AUTHOR][] = array('name' => $a);
@@ -208,10 +219,7 @@ class MendeleyBiblioDoc extends MendeleyDoc {
 		if(!empty($this->institution)) {
 			$node->biblio_contributors[self::BIBLIO_CORPORATE_AUTHOR][] = array('name' => $this->institution);
 		}
-		if($nid !== null) {
-			$node->nid = $nid;
-		}
-
+		// drupal_set_message('<pre>About to Return' . print_r($node, 1) . '</pre>');
 		return $node;
 	}
 

@@ -48,7 +48,7 @@ class Mendeley {
 	 */
 	public function __construct($consumerKey = null, $consumerSecret = null) {
 		require_once 'Configuration.php';
-		require_once Configuration::getPathToOauth();
+		// require_once Configuration::getPathToOauth();
 
 		if(!empty($consumerKey) && !empty($consumerSecret)) {
 			$consumer = array('key' => $consumerKey, 'secret' => $consumerSecret);
@@ -79,16 +79,18 @@ class Mendeley {
 	 */
 	public function getAccessToken() {
 		if(!$this->accessToken) {
-			$access_cache = $this->cache->get('access_token');
+			$access_cache = $this->cache->get('biblio_mendeley_access_token');
+			
 			if(isset($access_cache['oauth_token'])) {
 				$this->accessToken = new OAuthToken($access_cache['oauth_token'], $access_cache['oauth_token_secret']);
+				
 			} else {
 				// get request token
-				$request = $this->cache->get('request_token');
-
+				$request = $this->cache->get('biblio_mendeley_request_token');
 				if($request === false) {
 					$request = $this->oauthTokenRequest(null, self::MENDELEY_REQUEST_TOKEN_ENDPOINT);
-					$this->cache->set('request_token', $request);
+					
+					$this->cache->set('biblio_mendeley_request_token', $request);
 				}
 
 				$request_token = new OAuthToken($request['oauth_token'], $request['oauth_token_secret']);
@@ -101,16 +103,16 @@ class Mendeley {
 				} else {
 					// get access token
 					if($_REQUEST['oauth_token'] !== $request_token->key) {
+						
 						throw new Exception('Request token is wrong, please try again. This could happen if you open a strange URL. Please open the basis URL with no query arguments attached instead.');
 					}
 					$request = $this->oauthTokenRequest($request_token, self::MENDELEY_ACCESS_TOKEN_ENDPOINT, array('oauth_verifier' => $_GET['oauth_verifier']));
-					$this->cache->set('access_token', $request);
-					$this->cache->del('request_token');
+					$this->cache->set('biblio_mendeley_access_token', $request);
+					$this->cache->del('biblio_mendeley_request_token');
 					$this->accessToken = new OAuthToken($request['oauth_token'], $request['oauth_token_secret']);
 				}
 			}
 		}
-
 		return $this->accessToken;
 	}
 
@@ -222,8 +224,7 @@ class Mendeley {
 	 * @param OAuthToken $token
 	 * @param string $url
 	 * @param array $params
-	 * @return array
-	 * 	instantiate like this: new OAuthToken($return['oauth_token'], $return['oauth_token_secret']);
+	 * @return array new OAuthToken($return['oauth_token'], $return['oauth_token_secret']);
 	 */
 	private function oauthTokenRequest($token, $url, $params = array()) {
 		$acc_req = OAuthRequest::from_consumer_and_token($this->consumer, $token, 'GET', $url, $params);
@@ -374,6 +375,7 @@ class MendeleyDoc {
 	public $volume;
 	public $year;
 
+
 	/**
 	 * Returns all possible Mendeley document types
 	 */
@@ -412,7 +414,7 @@ class MendeleyDoc {
 		$that = new MendeleyDoc();
 		$mendeley = new Mendeley($consumerKey, $consumerSecret);
 
-		if($remote = $mendeley->get('documents/' . $documentId)) {
+		if($remote = $mendeley->get('/library/documents/' . $documentId)) {
 			$localParams = array_keys(get_object_vars($that));
 			$remoteParams = array_keys(get_object_vars($remote));
 			$match = array_intersect($localParams, $remoteParams);
@@ -450,8 +452,7 @@ class MendeleyCache {
 	}
 
 	public function get($name) {
-		if ($cache = variable_get('biblio_mendeley_foobar', array())) {
-		// if(@$cache = file_get_contents($this->dir . $name . $this->suffix)) {
+		if ($cache = variable_get($name)) {
 			return unserialize($cache);
 		} else {
 			return false;
@@ -459,18 +460,10 @@ class MendeleyCache {
 	}
 
 	public function del($name) {
-		variable_del('biblio_mendeley_foobar');
+		variable_del($name);
 	}
 
 	public function set($name, $value) {
-		variable_set('biblio_mendeley_foobar', serialize($value));
-		// if (!is_dir($this->dir)) {
-		// 	mkdir($this->dir);
-		// }
-		// $success = file_put_contents($this->dir . $name . $this->suffix, serialize($value));
-
-		// if($success == false) {
-		// 	throw new Exception(sprintf('Could not create directory or file: %s. Please check the permissions.', $this->dir . $name . $this->suffix));
-		// }
+		variable_set($name, serialize($value));
 	}
 }

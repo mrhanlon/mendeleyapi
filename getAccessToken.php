@@ -1,5 +1,5 @@
 <?php
-require_once 'Configuration.php';
+//require_once 'Configuration.php';
 require_once 'Mendeley.php';
 
 function getAccessToken() {
@@ -9,4 +9,4 @@ function getAccessToken() {
 	}
 }
 
-getAccessToken();
+echo getAccessToken();
